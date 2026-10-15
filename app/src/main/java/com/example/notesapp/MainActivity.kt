@@ -1,41 +1,50 @@
 package com.example.notesapp
 
-import android.app.AlertDialog
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 data class Note(
     val id: String = UUID.randomUUID().toString(),
-    val title: String,
-    val content: String,
-    val timestamp: Long = System.currentTimeMillis()
+    var title: String,
+    var content: String,
+    val timestamp: Long = System.currentTimeMillis(),
 )
 
 class NotesAdapter(
     private var notes: MutableList<Note>,
-    private val onDeleteClick: (Note) -> Unit
+    private val onNoteClick: (Note) -> Unit,
+    private val onDeleteClick: (Note) -> Unit,
 ) : RecyclerView.Adapter<NotesAdapter.NoteViewHolder>() {
 
     class NoteViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val titleText: TextView = view.findViewById(R.id.noteTitle)
         val contentText: TextView = view.findViewById(R.id.noteContent)
         val timestampText: TextView = view.findViewById(R.id.noteTimestamp)
-        val deleteIcon: View = view.findViewById(R.id.deleteIcon)
+        val editIcon: ImageView = view.findViewById(R.id.editIcon)
+        val deleteIcon: ImageView = view.findViewById(R.id.deleteIcon)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NoteViewHolder {
@@ -51,12 +60,12 @@ class NotesAdapter(
         val dateFormat = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
         holder.timestampText.text = dateFormat.format(Date(note.timestamp))
 
-        holder.deleteIcon.setOnClickListener {
-            onDeleteClick(note)
-        }
+        holder.itemView.setOnClickListener { onNoteClick(note) }
+        holder.editIcon.setOnClickListener { onNoteClick(note) }
+        holder.deleteIcon.setOnClickListener { onDeleteClick(note) }
     }
 
-    override fun getItemCount() = notes.size
+    override fun getItemCount(): Int = notes.size
 
     fun updateNotes(newNotes: List<Note>) {
         notes.clear()
@@ -71,123 +80,224 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: NotesAdapter
     private lateinit var fab: FloatingActionButton
     private lateinit var sharedPreferences: SharedPreferences
+    private lateinit var notesCountText: TextView
+    private lateinit var searchEditText: EditText
+    private lateinit var clearSearchIcon: ImageView
+    private lateinit var emptyStateLayout: View
+    private lateinit var emptyStateTitle: TextView
     private lateinit var emptyStateText: TextView
+    private lateinit var headerContainer: View
+
+    private val allNotes = mutableListOf<Note>()
     private val gson = Gson()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        enableEdgeToEdge()
-
+        setupWindowInsets()
         initViews()
         setupRecyclerView()
+        setupSearch()
         loadNotes()
 
-        fab.setOnClickListener { showAddNoteDialog() }
+        fab.setOnClickListener { showAddOrEditNoteDialog(null) }
+    }
+
+    private fun setupWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.mainRoot)) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            headerContainer.setPadding(
+                headerContainer.paddingLeft,
+                systemBars.top + 16,
+                headerContainer.paddingRight,
+                headerContainer.paddingBottom
+            )
+            val fabMargin = (24 * resources.displayMetrics.density).toInt()
+            val layoutParams = fab.layoutParams as ViewGroup.MarginLayoutParams
+            layoutParams.bottomMargin = fabMargin + systemBars.bottom
+            fab.layoutParams = layoutParams
+            insets
+        }
     }
 
     private fun initViews() {
         recyclerView = findViewById(R.id.recyclerView)
         fab = findViewById(R.id.fab)
+        notesCountText = findViewById(R.id.notesCountText)
+        searchEditText = findViewById(R.id.searchEditText)
+        clearSearchIcon = findViewById(R.id.clearSearchIcon)
+        emptyStateLayout = findViewById(R.id.emptyStateLayout)
+        emptyStateTitle = findViewById(R.id.emptyStateTitle)
         emptyStateText = findViewById(R.id.emptyStateText)
+        headerContainer = findViewById(R.id.headerContainer)
+
         sharedPreferences = getSharedPreferences("notes_prefs", MODE_PRIVATE)
     }
 
     private fun setupRecyclerView() {
-        adapter = NotesAdapter(mutableListOf()) { note ->
-            showDeleteConfirmationDialog(note)
-        }
+        adapter = NotesAdapter(
+            notes = mutableListOf(),
+            onNoteClick = { note -> showAddOrEditNoteDialog(note) },
+            onDeleteClick = { note -> showDeleteConfirmationDialog(note) },
+        )
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
+    }
+
+    private fun setupSearch() {
+        searchEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s?.toString()?.trim().orEmpty()
+                clearSearchIcon.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+                filterNotes(query)
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        clearSearchIcon.setOnClickListener {
+            searchEditText.text.clear()
+        }
     }
 
     private fun loadNotes() {
         val notesJson = sharedPreferences.getString("notes", "[]")
         val type = object : TypeToken<List<Note>>() {}.type
-        val notes: List<Note> = gson.fromJson(notesJson, type) ?: emptyList()
+        val loadedNotes: List<Note> = gson.fromJson(notesJson, type) ?: emptyList()
 
-        adapter.updateNotes(notes)
-        updateEmptyState(notes.isEmpty())
+        allNotes.clear()
+        allNotes.addAll(loadedNotes)
+
+        filterNotes(searchEditText.text.toString().trim())
     }
 
-    private fun saveNotes(notes: List<Note>) {
-        val notesJson = gson.toJson(notes)
+    private fun filterNotes(query: String) {
+        val filtered = if (query.isEmpty()) {
+            allNotes
+        } else {
+            allNotes.filter {
+                it.title.contains(query, ignoreCase = true) ||
+                        it.content.contains(query, ignoreCase = true)
+            }
+        }
+
+        adapter.updateNotes(filtered)
+        updateUI(filtered, query)
+    }
+
+    private fun updateUI(filteredNotes: List<Note>, query: String) {
+        val totalCount = allNotes.size
+        val displayedCount = filteredNotes.size
+
+        notesCountText.text = if (query.isEmpty()) {
+            when (totalCount) {
+                1 -> getString(R.string.notes_count_singular)
+                else -> getString(R.string.notes_count_plural, totalCount)
+            }
+        } else {
+            getString(R.string.notes_found_count, displayedCount)
+        }
+
+        if (displayedCount == 0) {
+            emptyStateLayout.visibility = View.VISIBLE
+            recyclerView.visibility = View.GONE
+
+            if (query.isNotEmpty()) {
+                emptyStateTitle.text = getString(R.string.no_results_title)
+                emptyStateText.text = getString(R.string.no_results_desc)
+            } else {
+                emptyStateTitle.text = getString(R.string.no_notes_title)
+                emptyStateText.text = getString(R.string.no_notes_desc)
+            }
+        } else {
+            emptyStateLayout.visibility = View.GONE
+            recyclerView.visibility = View.VISIBLE
+        }
+    }
+
+    private fun saveNotes() {
+        val notesJson = gson.toJson(allNotes)
         sharedPreferences.edit().putString("notes", notesJson).apply()
     }
 
-    private fun showAddNoteDialog() {
+    private fun showAddOrEditNoteDialog(noteToEdit: Note?) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_note, null)
         val titleEdit = dialogView.findViewById<EditText>(R.id.editTitle)
         val contentEdit = dialogView.findViewById<EditText>(R.id.editContent)
 
-        AlertDialog.Builder(this)
-            .setTitle("Add New Note")
+        if (noteToEdit != null) {
+            titleEdit.setText(noteToEdit.title)
+            contentEdit.setText(noteToEdit.content)
+        }
+
+        val dialogTitleRes = if (noteToEdit != null) R.string.edit_note_title else R.string.add_note_title
+        val positiveButtonRes = if (noteToEdit != null) R.string.update_button else R.string.save_button
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(dialogTitleRes)
             .setView(dialogView)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton(positiveButtonRes) { _, _ ->
                 val title = titleEdit.text.toString().trim()
                 val content = contentEdit.text.toString().trim()
 
                 if (title.isNotEmpty() && content.isNotEmpty()) {
-                    addNote(title, content)
+                    if (noteToEdit != null) {
+                        updateNote(noteToEdit, title, content)
+                    } else {
+                        addNote(title, content)
+                    }
                 } else {
-                    Toast.makeText(this, "Please fill in both title and content", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.empty_fields_warning), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.cancel_button, null)
             .create()
             .show()
     }
 
     private fun addNote(title: String, content: String) {
-        val currentNotes = getCurrentNotes().toMutableList()
         val newNote = Note(title = title, content = content)
-        currentNotes.add(newNote)
+        allNotes.add(0, newNote)
 
-        saveNotes(currentNotes)
-        adapter.updateNotes(currentNotes)
-        updateEmptyState(false)
+        saveNotes()
+        filterNotes(searchEditText.text.toString().trim())
 
-        Toast.makeText(this, "Note added successfully", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.note_added_msg), Toast.LENGTH_SHORT).show()
     }
 
-    private fun getCurrentNotes(): List<Note> {
-        val notesJson = sharedPreferences.getString("notes", "[]")
-        val type = object : TypeToken<List<Note>>() {}.type
-        return gson.fromJson(notesJson, type) ?: emptyList()
-    }
+    private fun updateNote(note: Note, title: String, content: String) {
+        val index = allNotes.indexOfFirst { it.id == note.id }
+        if (index != -1) {
+            allNotes[index].title = title
+            allNotes[index].content = content
 
-    private fun updateEmptyState(isEmpty: Boolean) {
-        if (isEmpty) {
-            emptyStateText.visibility = View.VISIBLE
-            recyclerView.visibility = View.GONE
-        } else {
-            emptyStateText.visibility = View.GONE
-            recyclerView.visibility = View.VISIBLE
+            saveNotes()
+            filterNotes(searchEditText.text.toString().trim())
+
+            Toast.makeText(this, getString(R.string.note_updated_msg), Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun showDeleteConfirmationDialog(note: Note) {
-        AlertDialog.Builder(this)
-            .setTitle("Delete Note")
-            .setMessage("Are you sure you want to delete \"${note.title}\"?")
-            .setPositiveButton("Delete") { _, _ ->
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.delete_note_title)
+            .setMessage(getString(R.string.delete_confirm_msg, note.title))
+            .setPositiveButton(R.string.delete_button) { _, _ ->
                 deleteNote(note)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.cancel_button, null)
             .create()
             .show()
     }
 
     private fun deleteNote(note: Note) {
-        val currentNotes = getCurrentNotes().toMutableList()
-        currentNotes.removeAll { it.id == note.id }
+        allNotes.removeAll { it.id == note.id }
 
-        saveNotes(currentNotes)
-        adapter.updateNotes(currentNotes)
-        updateEmptyState(currentNotes.isEmpty())
+        saveNotes()
+        filterNotes(searchEditText.text.toString().trim())
 
-        Toast.makeText(this, "Note deleted", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.note_deleted_msg), Toast.LENGTH_SHORT).show()
     }
 }
-

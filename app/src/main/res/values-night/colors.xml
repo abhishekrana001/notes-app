@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="primary_color">#818CF8</color>
+    <color name="primary_light">#312E81</color>
+    <color name="primary_dark">#6366F1</color>
+    <color name="primary_variant">#A5B4FC</color>
+
+    <!-- Surface and Background -->
+    <color name="background_color">#0F172A</color>
+    <color name="card_background">#1E293B</color>
+    <color name="card_stroke">#334155</color>
+
+    <!-- Accent / FAB -->
+    <color name="accent_color">#818CF8</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_hint">#64748B</color>
+
+    <!-- Icon Tints -->
+    <color name="icon_tint">#94A3B8</color>
+
+    <!-- System Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="delete_red">#F87171</color>
+    <color name="delete_red_light">#451A1A</color>
+</resources>

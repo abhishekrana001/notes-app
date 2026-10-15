@@ -1,3 +1,31 @@
 <resources>
     <string name="app_name">NOTES APP</string>
+    <string name="my_notes">My Notes</string>
+    <string name="sub_title">Keep your thoughts organized</string>
+    <string name="search_notes_hint">Search notes&#8230;</string>
+    <string name="add_note_title">Add New Note</string>
+    <string name="edit_note_title">Edit Note</string>
+    <string name="delete_note_title">Delete Note</string>
+    <string name="note_title_hint">Note Title</string>
+    <string name="note_content_hint">Note Content</string>
+    <string name="save_button">Save</string>
+    <string name="update_button">Update</string>
+    <string name="delete_button">Delete</string>
+    <string name="cancel_button">Cancel</string>
+    <string name="no_notes_title">No notes yet</string>
+    <string name="no_notes_desc">Tap + button to create your first note</string>
+    <string name="no_results_title">No matching notes</string>
+    <string name="no_results_desc">Try searching with a different keyword</string>
+    <string name="edit_note_desc">Edit note</string>
+    <string name="delete_note_desc">Delete note</string>
+    <string name="clear_search_desc">Clear search</string>
+    <string name="add_note_desc">Add Note</string>
+    <string name="empty_fields_warning">Please fill in both title and content</string>
+    <string name="note_added_msg">Note added successfully</string>
+    <string name="note_updated_msg">Note updated successfully</string>
+    <string name="note_deleted_msg">Note deleted</string>
+    <string name="delete_confirm_msg">Are you sure you want to delete \"%1$s\"?</string>
+    <string name="notes_count_plural">%1$d Notes</string>
+    <string name="notes_count_singular">1 Note</string>
+    <string name="notes_found_count">%1$d Found</string>
 </resources>
